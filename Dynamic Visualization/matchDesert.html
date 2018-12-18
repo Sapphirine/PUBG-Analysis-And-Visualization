@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <title>Players' Positions: Desert map</title>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="//d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
+    <style>
+        .map {	
+            background-image: url("desert.png");
+			width: 700px;
+            height: 700px;
+            background-color: white;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-size: cover;
+            position: absolute;
+			}
+        .player {
+            opacity: 0.75;
+            stroke: black;
+            stroke-width: 1;
+        }
+        .blue_zone {
+            fill: none;
+            opacity: 0.8;
+            stroke: rgb(12, 69, 240);
+            stroke-width: 2 ;
+        }
+        .safe_zone{
+            fill: none;
+            stroke: beige;
+            opacity: 0.8;
+            stroke-width: 1.5;
+        }
+        #play-button {
+            position: absolute;
+            top: 55px;
+            left: 220px;
+            background: #f08080;
+            padding-right: 26px;
+            border-radius: 3px;
+            border: none;
+            color: white;
+            margin: 0;
+            padding: 0 12px;
+            width: 60px;
+            cursor: pointer;
+            height: 30px;
+        }
+        .track {
+            stroke: #dcdcdc;
+            stroke-opacity: 0.9;
+            stroke-width: 10px;
+            stroke-linecap: round;
+        }
+        .track-alive {
+            stroke: #f08080;
+            stroke-opacity: 0.8;
+            stroke-width: 8px;
+            stroke-linecap: round;
+        }
+        .track-time {
+            stroke: grey;
+            stroke-opacity: 0.8;
+            stroke-width: 8px;
+            stroke-linecap: round;
+        }
+	</style>
+</head>
+
+<body>
+    <div id="vis">
+        <button id="play-button">Play</button>
+    </div>
+
+    <script type="text/javascript">
+        var w = 700;
+        var h = w;
+        var T = 40;
+        var margin = { left: 0, top: 0 };
+
+        var slider = d3.select("body").append("svg")
+            .attr("transform", `translate(300, 20)`)
+            .attr("width", w)
+            .attr("height", 60)
+            .append("g")
+            .attr("class", "slider")
+
+        slider.append("line")
+            .attr("class", "track")
+            .attr("x1", 60)
+            .attr("x2", w - 25)
+            .attr("y1", 28)
+            .attr("y2", 28);
+
+        slider.append("text")
+            .attr("x", 0)
+            .attr("y", 34)
+            .text("Players");
+
+        slider.append("line")
+            .attr("class", "track")
+            .attr("x1", 60)
+            .attr("x2", w - 25)
+            .attr("y1", 48)
+            .attr("y2", 48);
+
+        slider.append("text")
+            .attr("x", 0)
+            .attr("y", 54)
+            .text("Time");
+
+        slider.append("line")
+            .attr("class", "track-alive")
+            .attr("x1", 60)
+            .attr("x2", 60)
+            .attr("y1", 28)
+            .attr("y2", 28);
+
+        slider.append("line")
+            .attr("class", "track-time")
+            .attr("x1", 60)
+            .attr("x2", 60)
+            .attr("y1", 48)
+            .attr("y2", 48);
+
+        var svg = d3.select("body").append("svg")
+            .attr("transform", "translate(-410,90)")
+            .attr("width", w)
+            .attr("height", h)
+            .attr("class", "map");
+
+        var plot = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+        d3.csv("Desert_position.csv", function (player_data) {
+            d3.csv("Desert_zone.csv", function (zone_data) {
+                const position = player_data.map(function (d) {
+                    return {
+                        id: Number(d.ID), x: Number(d.x), y: Number(d.y),
+                        dur: Number(d.duration), health: Number(d.health), alive: Number(d.number_alive), time: d.time
+                    }
+                });
+                const blueZone = zone_data.map(function (d) {
+                    return { x: Number(d.blue_x), y: Number(d.blue_y), r: Number(d.blue_r), dur: Number(d.duration) }
+                });
+                const safeZone = zone_data.map(function (d) {
+                    return { x: Number(d.safe_x), y: Number(d.safe_y), r: Number(d.safe_r), dur: Number(d.duration) }
+                });
+
+                // Scale functions
+                var xmin = 0;
+                var xmax = 8160;
+                var numMax = d3.max(position.map(d => d.alive));
+
+                var Scale = d3.scaleLinear().domain([xmin, xmax]).range([0, w]);
+                var colorScale = d3.scaleLinear().domain([0, 100]).range(["red", "white"]);
+                var numScale = d3.scaleLinear().domain([numMax, 1]).range([60, w - 35]);
+
+                var maxDur = d3.max(position.map(d => d.dur));
+                var minDur = d3.min(position.map(d => d.dur));
+
+                // initialize description text
+                slider.append("text").attr("id", "alive")
+                    .attr("x", 200)
+                    .attr("y", 15)
+                    .text(`Players alive = ${numMax}, Time = ${[position[0]].map(d => d.time)[0]}`)
+                    .attr("font-size", 20);
+
+                // initialize players' position
+                const index = d3.range(100).map(d => ({ id: d, x: 100, y: 100 }));
+                plot.append("g")
+                    .attr("class", "player")
+                    .selectAll("circle")
+                    .data(index).enter()
+                    .append("circle")
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+                // initialize blue zone
+                plot.append("g")
+                    .attr("class", "blue_zone")
+                    .append("circle")
+                    .attr("cx", 0)
+                    .attr("cy", 0)
+                    .attr("r", 0);
+                // initialize safe zone
+                plot.append("g")
+                    .attr("class", "safe_zone")
+                    .append("circle")
+                    .attr("cx", 0)
+                    .attr("cy", 0)
+                    .attr("r", 0);
+
+                var playButton = d3.select("#play-button");
+                playButton.on("click", update);
+
+                function update() {
+                    d3.select("#play-button").style("background", "grey");
+
+                    d3.select("line.track-time")
+                        .transition()
+                        .duration(maxDur * T)
+                        .ease(d3.easeLinear)
+                        .attr("x2", w - 25);
+
+                    var player = d3.select("g.player").selectAll("circle");
+                    var blue = d3.select("g.blue_zone").selectAll("circle");
+                    var safe = d3.select("g.safe_zone").selectAll("circle");
+
+                    // update players' position
+                    for (var i = minDur; i < maxDur; i++) {
+                        const po_i = position.filter(d => { return d.dur == i });
+                        const num = po_i.map(d => d.alive)[0];
+                        const time = po_i.map(d => d.time)[0];
+
+                        if (num > 0) {
+                            // positions
+                            player.data(po_i, d => d.id)
+                                .transition()
+                                .delay(d => d.dur * T)
+                                .duration(10)
+                                .attr("cx", d => Scale(d.x))
+                                .attr("cy", d => Scale(d.y))
+                                .attr("r", 4)
+                                .attr("fill", d => colorScale(d.health));
+
+                            // description text
+                            d3.select("text#alive")
+                                .transition()
+                                .delay(i * T)
+                                .duration(10)
+                                .text(`Players alive = ${num}, Time = ${time}`);
+
+                            d3.select("line.track-alive")
+                                .transition()
+                                .delay(i * T)
+                                .duration(100)
+                                .ease(d3.easeLinear)
+                                .attr("x2", numScale(num));
+                        }
+                    };
+
+                    // update zones
+                    for (var i = 0; i < blueZone.length; i++) {
+                        const blue_i = [blueZone[i]];
+                        const safe_i = [safeZone[i]];
+
+                        // blue zone
+                        blue.data(blue_i)
+                            .transition()
+                            .delay(d => d.dur * T)
+                            .duration(20)
+                            .attr("cx", d => Scale(d.x))
+                            .attr("cy", d => Scale(d.y))
+                            .attr("r", d => Scale(d.r));
+                        // safe zone
+                        safe.data(safe_i)
+                            .transition()
+                            .delay(d => d.dur * T)
+                            .duration(20)
+                            .attr("cx", d => Scale(d.x))
+                            .attr("cy", d => Scale(d.y))
+                            .attr("r", d => Scale(d.r));
+                    };
+                }
+            })
+        });
+
+    </script>
+
+
+</body>
+
+</html>
